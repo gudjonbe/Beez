@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bee-sim-ws"
+version = "0.2.0"
+description = "Bee hive simulation (WebSocket-first) — runnable demo aligned to your structure."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "starlette>=0.38",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"bee_sim" = ["webui/*"]
+
+[tool.ruff]
+line-length = 100

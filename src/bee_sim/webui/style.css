@@ -1,0 +1,8 @@
+:root { --bg:#14161a; --fg:#eaeaea; --panel:#1c1f25; --accent:#ffd54a; --muted:#7a7f87; --border:#2a2f36; }
+*{box-sizing:border-box} html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif}
+#layout{display:grid;grid-template-columns:320px 1fr;height:100%} #side-panel{padding:16px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto}
+#main{display:grid;place-items:center;padding:16px} h2{margin:12px 0 8px;font-size:16px;color:var(--accent)}
+.group{margin:8px 0 16px} button{background:#2a2f36;color:var(--fg);border:1px solid var(--border);padding:8px 12px;margin-right:8px;cursor:pointer;border-radius:6px}
+button:hover{border-color:var(--accent)} input[type=range]{width:100%}
+.placeholder{height:120px;border:1px dashed var(--border);display:grid;place-items:center;color:var(--muted);background:#171a20;border-radius:6px}
+canvas{background:#0f1115;border:1px solid var(--border);border-radius:8px;max-width:100%;height:auto} #stats{font-family:ui-monospace,Menlo,Consolas,monospace}

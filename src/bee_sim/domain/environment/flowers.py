@@ -30,7 +30,7 @@ class Flower:
     @property
     def available(self) -> bool:
         # "worth visiting" threshold
-        return self.nectar >= 0.25
+        return self.nectar >= 0.75
 
 
 class FlowerField:

@@ -1,36 +1,47 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BeeSim Web UI</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div id="layout">
-    <div id="side-panel">
-      <h2>Controls</h2>
-      <div class="group"><button id="playpause">Play</button></div>
-      <div class="group">
-        <label for="speed">Speed: <span id="speedLabel">1.0x</span></label>
-        <input id="speed" type="range" min="0" max="4" value="1" step="0.1" />
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BeeSim Web UI</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="layout">
+      <div id="side-panel">
+        <h2>Controls</h2>
+        <div class="group"><button id="playpause">Play</button></div>
+        <div class="group">
+          <label for="speed">Speed: <span id="speedLabel">1.0x</span></label>
+          <input id="speed" type="range" min="0" max="4" value="1" step="0.1" />
+        </div>
+        <div class="group">
+          <label for="beeKind">Bee kind:</label>
+          <select id="beeKind">
+            <option value="worker" selected>Worker</option>
+            <option value="queen">Queen</option>
+            <option value="drone">Drone</option>
+          </select>
+        </div>
+
+
+
+        <div class="group">
+          <button data-add="1">Add 1 bee</button>
+          <button data-add="10">Add 10 bees</button>
+          <button data-add="50">Add 50 bees</button>
+        </div>
+        <h2>Stats</h2>
+        <div id="stats">
+          <div>Bees: <span id="beesCount">0</span></div>
+          <div>t: <span id="simTime">0.00</span> s</div>
+          <div>Paused: <span id="paused">false</span></div>
+        </div>
+        <h2>Future Panel</h2>
+        <div id="future"><div class="placeholder">Plots will go here.</div></div>
       </div>
-      <div class="group">
-        <button data-add="1">Add 1 bee</button>
-        <button data-add="10">Add 10 bees</button>
-        <button data-add="50">Add 50 bees</button>
-      </div>
-      <h2>Stats</h2>
-      <div id="stats">
-        <div>Bees: <span id="beesCount">0</span></div>
-        <div>t: <span id="simTime">0.00</span> s</div>
-        <div>Paused: <span id="paused">false</span></div>
-      </div>
-      <h2>Future Panel</h2>
-      <div id="future"><div class="placeholder">Plots will go here.</div></div>
+      <div id="main"><canvas id="view" width="960" height="540"></canvas></div>
     </div>
-    <div id="main"><canvas id="view" width="960" height="540"></canvas></div>
-  </div>
-  <script type="module" src="/app.js"></script>
-</body>
+    <script type="module" src="/app.js"></script>
+  </body>
 </html>

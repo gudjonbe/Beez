@@ -54,23 +54,35 @@ class ClientSession:
         if t == "subscribe":
             hz = int(data.get("hz", 30)); self.hz = max(1, min(120, hz))
             await self.ws.send_text(json.dumps({"type": "ack", "payload": {"subscribe_hz": self.hz}}))
+
         elif t == "cmd":
             action = data.get("action")
             if action == "toggle":
                 paused = _sim.toggle_paused()
                 await self.ws.send_text(json.dumps({"type": "ack", "payload": {"paused": paused}}))
+
             elif action == "play":
                 _sim.set_paused(False)
                 await self.ws.send_text(json.dumps({"type": "ack", "payload": {"paused": False}}))
+
             elif action == "pause":
                 _sim.set_paused(True)
                 await self.ws.send_text(json.dumps({"type": "ack", "payload": {"paused": True}}))
+
             elif action == "speed":
                 value = float(data.get("value", 1.0)); _sim.set_speed(value)
                 await self.ws.send_text(json.dumps({"type": "ack", "payload": {"speed": value}}))
+
             elif action == "add_bees":
-                count = int(data.get("count", 1)); _sim.add_bees(count)
-                await self.ws.send_text(json.dumps({"type": "ack", "payload": {"added": count}}))
+                count = int(data.get("count", 1))
+                kind = data.get("kind", "worker")  # "worker" | "queen" | "drone"
+                _sim.add_bees(count, kind=kind)
+                await self.ws.send_text(json.dumps(
+                    {"type": "ack", "payload": {"added": count, "kind": kind}}))
+
+
+
+
             else:
                 await self.ws.send_text(json.dumps({"type": "error", "message": f"Unknown action: {action}"}))
         else:

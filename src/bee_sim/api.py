@@ -1,3 +1,4 @@
+# src/bee_sim/api.py
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
@@ -28,13 +29,10 @@ class SimController:
         self.rng = random.Random(seed)
         self._t = 0.0; self._next_id = 1; self._bees: list[Bee] = []
         self._paused = False; self._speed = 1.0
-
-        # World with hive + flower patches
         self.world = World(width, height, self.rng)
-
-        # Start with a few workers
         self.add_bees(5)
 
+    # --- control
     def set_paused(self, paused: bool) -> None: self._paused = paused
     def toggle_paused(self) -> bool: self._paused = not self._paused; return self._paused
     def set_speed(self, speed: float) -> None: self._speed = max(0.0, min(4.0, float(speed)))
@@ -44,12 +42,15 @@ class SimController:
             b = create_bee(kind, id=self._next_id, rng=self.rng, width=self.width, height=self.height)
             self._next_id += 1; self._bees.append(b)
 
+    # --- loop
     def step(self, dt: float) -> None:
         if self._paused or dt <= 0.0: return
         dt *= self._speed; self._t += dt
+        self.world.step(dt)
         for b in self._bees:
             b.step(dt, self.width, self.height, self.rng, world=self.world)
 
+    # --- view
     def get_view(self) -> dict:
         bees_view = [BeeView(**b.snapshot()) for b in self._bees]
         return {
@@ -58,4 +59,3 @@ class SimController:
             "bees": [bv.__dict__ for bv in bees_view],
             "world": self.world.snapshot(),
         }
-

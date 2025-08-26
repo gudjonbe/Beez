@@ -3,19 +3,25 @@ from typing import Dict, Any
 import random
 
 from .flowers import FlowerField
+from bee_sim.communication.recruitment import RecruitmentBoard
 
 class World:
+    """Global state: hive, flowers, recruitment board, and simple metrics."""
     def __init__(self, width: int, height: int, rng: random.Random):
         self.width = width
         self.height = height
         self.rng = rng
+
         self.hive = (width * 0.5, height * 0.5)
         self.hive_radius = 30.0
+
         self.flowers = FlowerField(width, height, rng)
+        self.comms = RecruitmentBoard(rng)  # <--- communication board
         self.total_deposited = 0.0
 
     def step(self, dt: float):
         self.flowers.step(dt)
+        self.comms.step(dt)
 
     def add_flowers(self, n: int):
         self.flowers.add_random(n)
@@ -36,4 +42,5 @@ class World:
             "flowers": self.flowers.snapshot(),
             "flowers_remaining": self.flowers.remaining(),
             "total_deposited": self.total_deposited,
+            "comms": self.comms.snapshot(),  # small stat for later UI
         }

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BeeSim Web UI</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=7" />
 </head>
 <body>
   <div id="layout">
@@ -19,8 +19,7 @@
         <label for="beeKind">Bee kind:</label>
         <select id="beeKind">
           <option value="worker" selected>Worker</option>
-          <option value="queen">Queen</option>
-          <option value="drone">Drone</option>
+          <option value="queen">Queen 👑</option>
         </select>
       </div>
       <div class="group">
@@ -42,9 +41,14 @@
         <div>Bees: <span id="beesCount">0</span></div>
         <div>Flowers left: <span id="flowersLeft">0</span></div>
         <div>Nectar deposited: <span id="deposited">0.0</span></div>
-        <div>Intake queue: <span id="queue">0.0</span></div>
         <div>t: <span id="simTime">0.00</span> s</div>
         <div>Paused: <span id="paused">false</span></div>
+        <div class="divider"></div>
+        <div><b>Roles</b></div>
+        <div id="roleStats" class="stats-list"></div>
+        <div class="divider"></div>
+        <div><b>Signals (live)</b></div>
+        <div id="signalStats" class="stats-list"></div>
       </div>
 
       <h2>Future Panel</h2>
@@ -52,6 +56,8 @@
     </div>
     <div id="main"><canvas id="view" width="960" height="540"></canvas></div>
   </div>
-  <script type="module" src="/app.js"></script>
+  <!-- IMPORTANT: type="module" + cache-bust -->
+  <script type="module" src="/app.js?v=7"></script>
 </body>
 </html>
+

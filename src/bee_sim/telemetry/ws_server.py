@@ -238,11 +238,31 @@ class ClientSession:
 
 # ---------------------------------------------------------------------------
 # HTTP routes and ASGI app
+#   + dev no-cache so updated JS/CSS are always fetched fresh
 # ---------------------------------------------------------------------------
 
+class NoCacheStaticFiles(StaticFiles):
+    """StaticFiles that disables browser caching (great for development)."""
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        # Only add headers for successful static responses
+        if getattr(resp, "status_code", 200) == 200:
+            resp.headers["Cache-Control"] = "no-store, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+        return resp
+
+
 async def homepage(request):
-    """Serve the UI entry point."""
-    return FileResponse(UI_DIR / "index.html")
+    """Serve the UI entry point with no-cache headers in development."""
+    return FileResponse(
+        UI_DIR / "index.html",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 async def ws_endpoint(ws: WebSocket):
@@ -254,7 +274,8 @@ async def ws_endpoint(ws: WebSocket):
 routes = [
     Route("/", endpoint=homepage),
     WebSocketRoute("/ws", endpoint=ws_endpoint),
-    Mount("/", app=StaticFiles(directory=UI_DIR, html=False), name="static"),
+    # Use our no-cache static server for dev
+    Mount("/", app=NoCacheStaticFiles(directory=UI_DIR, html=False), name="static"),
 ]
 
 app = Starlette(routes=routes)

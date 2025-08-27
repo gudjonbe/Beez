@@ -1,5 +1,6 @@
-// src/bee_sim/webui/app.js
-import { WSClient } from "./ws_client.js";
+// Make sure we import the same version and see a startup log
+import { WSClient } from "./ws_client.js?v=7";
+console.log("[ui] app.js loaded v7");
 
 const kindSelect  = document.getElementById("beeKind");
 const canvas      = document.getElementById("view");
@@ -14,6 +15,8 @@ const simTime   = document.getElementById("simTime");
 const pausedEl  = document.getElementById("paused");
 const flowersLeftEl = document.getElementById("flowersLeft");
 const depositedEl = document.getElementById("deposited");
+const roleStatsEl = document.getElementById("roleStats");
+const signalStatsEl = document.getElementById("signalStats");
 
 const ws = new WSClient();
 ws.connect();
@@ -73,6 +76,15 @@ ws.onView((view) => {
     depositedEl.textContent = (view.world.total_deposited ?? 0).toFixed(1);
   }
 
+  if (roleStatsEl && view.stats && view.stats.roles) {
+    const roles = view.stats.roles;
+    roleStatsEl.innerHTML = Object.keys(roles).sort().map(k => `<div>${k}: <b>${roles[k]}</b></div>`).join("");
+  }
+  if (signalStatsEl && view.stats && view.stats.signals) {
+    const sigs = view.stats.signals;
+    signalStatsEl.innerHTML = Object.keys(sigs).sort().map(k => `<div>${k}: <b>${sigs[k]}</b></div>`).join("");
+  }
+
   if (canvas.width !== view.width || canvas.height !== view.height) {
     canvas.width  = view.width;
     canvas.height = view.height;
@@ -81,25 +93,26 @@ ws.onView((view) => {
 
 // ---- rendering ----
 function draw(v) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#0f1115';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, w, h);
 
   if (!v) return;
 
   // hive
   if (v.world && v.world.hive) {
-    const h = v.world.hive;
+    const hvc = v.world.hive;
     ctx.beginPath();
-    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+    ctx.arc(hvc.x, hvc.y, hvc.r, 0, Math.PI * 2);
     ctx.strokeStyle = '#66b2ff';
     ctx.lineWidth = 2;
     ctx.stroke();
   }
 
-  // flowers: fade by fullness (frac), fallback to visited
+  // flowers
   if (v.world && Array.isArray(v.world.flowers)) {
-    ctx.font = '12px system-ui, emoji';
+    ctx.font = '18px system-ui, emoji';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const f of v.world.flowers) {
@@ -110,22 +123,36 @@ function draw(v) {
     }
     ctx.globalAlpha = 1.0;
   }
-  // 🐝
-  // bees
-  for (const b of v.bees) {
-    
-    ctx.font = '12px system-ui, emoji';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🐝', b.x, b.y);
-    
-    ctx.moveTo(b.x, b.y);
-  /*
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffd54a';
-    ctx.fill();
 
+  // ---- bees: workers first, queens last ----
+  const workers = v.bees.filter(b => b.kind !== 'queen');
+  const queens  = v.bees.filter(b => b.kind === 'queen');
+
+  function drawWorker(b) {
+    // flash halo if recently emitted a signal
+    if (b.flash && b.flash > 0) {
+      const alpha = Math.max(0, Math.min(1, b.flash));
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 220, 90, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // foragers use the bee emoji; others keep the small circle
+    if (b.role === 'forager') {
+      ctx.font = '8px system-ui, emoji';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🐝', b.x, b.y);
+    } else {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd54a';
+      ctx.fill();
+    }
+
+    // heading tick (all non-queen bees)
     const dx = Math.cos(b.heading) * 6;
     const dy = Math.sin(b.heading) * 6;
     ctx.beginPath();
@@ -134,8 +161,25 @@ function draw(v) {
     ctx.strokeStyle = '#fff2b3';
     ctx.lineWidth = 1;
     ctx.stroke();
-  
-  */
+  }
+
+  // draw workers first
+  for (const b of workers) drawWorker(b);
+
+  // draw queens last, on top
+  for (const b of queens) {
+    if (b.flash && b.flash > 0) {
+      const alpha = Math.max(0, Math.min(1, b.flash));
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 9, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 220, 90, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.font = '10px system-ui, emoji';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👑', b.x, b.y);
   }
 }
 

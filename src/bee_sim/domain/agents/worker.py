@@ -6,6 +6,10 @@ import math, random
 from .bee import Bee
 from .roles import Role
 from .behaviors.communication import sense_signals, drives_from_senses
+from bee_sim.domain.communication.signals import Signal
+
+TREM_QUEUE_HIGH = 8.0   # queue threshold to trigger tremble
+RECEIVER_RATE = 1.2     # nectar/sec drained by a receiver
 
 class WorkerBee(Bee):
     """Worker with role-based behavior, foraging, and basic communication."""
@@ -97,17 +101,22 @@ class WorkerBee(Bee):
             dist = math.hypot(hx - self.x, hy - self.y)
             if dist < (world.hive_radius + 10.0):
                 if self.carry > 0.0:
-                    world.deposit(self.carry)
-                    if self.carry >= self.WAGGLE_THRESHOLD and self._last_flower_xy:
+                    # enqueue nectar into receiver queue instead of instant deposit
+                    world._hive.enqueue(self.carry)
+                    q = world._hive.receiver_queue
+                    # recruitment logic: tremble if queue high, else waggle
+                    if q >= TREM_QUEUE_HIGH:
+                        world.signals.emit(Signal(kind="tremble", x=hx, y=hy, radius=35.0,
+                                                  intensity=1.0, decay=0.5, ttl=3.0, source_id=self.id))
+                        self.flash_timer = max(self.flash_timer, 0.5)
+                    elif self._last_flower_xy and self.carry >= self.WAGGLE_THRESHOLD:
                         lx, ly = self._last_flower_xy
-                        from bee_sim.domain.communication.signals import Signal
                         world.signals.emit(Signal(
                             kind="waggle", x=hx, y=hy, radius=40.0,
                             intensity=min(2.5, 0.8 + 0.4 * self.carry),
                             decay=0.35, ttl=self.WAGGLE_TTL, source_id=self.id,
                             payload={"tx": float(lx), "ty": float(ly)}
                         ))
-                        # brief visual pulse for UI
                         self.flash_timer = max(self.flash_timer, 0.5)
                     self.carry = 0.0
                 self.state = "wander"
@@ -117,14 +126,17 @@ class WorkerBee(Bee):
             super().step(dt, width, height, rng)
 
     def _behave_receiver(self, dt: float, width: int, height: int, rng: random.Random, world: Any):
+        # go to receiver station (hive center) and drain queue
         hx, hy = world.hive
-        if math.hypot(self.x - hx, self.y - hy) > world.hive_radius * 0.7:
-            self._go_towards(hx, hy, dt, speed_scale=0.5)
+        if math.hypot(self.x - hx, self.y - hy) > world.hive_radius * 0.4:
+            self._go_towards(hx, hy, dt, speed_scale=0.6)
         else:
-            self._random_walk(dt*0.5, rng)
+            self._random_walk(dt*0.4, rng)
+            world.service_receiver(dt, rate_per_bee=RECEIVER_RATE)
         self._clamp(width, height)
 
     def _behave_nurse(self, dt: float, width: int, height: int, rng: random.Random, world: Any):
+        # brood area ~ center; stronger attraction
         hx, hy = world.hive
         if math.hypot(self.x - hx, self.y - hy) > world.hive_radius * 0.6:
             self._go_towards(hx, hy, dt, speed_scale=0.6)
@@ -133,19 +145,20 @@ class WorkerBee(Bee):
         self._clamp(width, height)
 
     def _behave_fanner(self, dt: float, width: int, height: int, rng: random.Random, world: Any):
+        # go to entrance and emit nasonov/fanning periodically
         hx, hy = world.hive
         ex, ey = hx, hy - world.hive_radius  # 12 o'clock entrance
         if math.hypot(self.x - ex, self.y - ey) > 8.0:
             self._go_towards(ex, ey, dt, speed_scale=0.7)
         else:
             self._random_walk(dt*0.3, rng)
-            from bee_sim.domain.communication.signals import Signal
             world.signals.emit(Signal(kind="nasonov", x=ex, y=ey, radius=60.0, intensity=0.6, decay=0.5, ttl=1.2, source_id=self.id))
             world.signals.emit(Signal(kind="fanning",  x=ex, y=ey, radius=50.0, intensity=0.4, decay=0.6, ttl=1.0, source_id=self.id))
             self.flash_timer = max(self.flash_timer, 0.3)
         self._clamp(width, height)
 
     def _behave_guard(self, dt: float, width: int, height: int, rng: random.Random, world: Any):
+        # patrol entrance rim
         hx, hy = world.hive
         ex, ey = hx, hy - world.hive_radius
         if math.hypot(self.x - ex, self.y - ey) > 12.0:
@@ -154,14 +167,21 @@ class WorkerBee(Bee):
             self._random_walk(dt*0.4, rng)
         self._clamp(width, height)
 
+    # --- main step ---
     def step(self, dt: float, width: int, height: int, rng: random.Random, world: Any | None = None) -> None:
         if world is None:
             return super().step(dt, width, height, rng)
+
+        # 1) Perceive signals and update drives
         senses = sense_signals(self.x, self.y, world)
         drives_from_senses(self.drives, senses, dt)
+
+        # 2) Pick role with hysteresis + dwell
         self.role_policy.tick(dt)
         role: Role = self.role_policy.choose(self.drives)
         self.role = role
+
+        # 3) Execute role behavior
         if role == "forager":
             self._behave_forager(dt, width, height, rng, world)
         elif role == "receiver":
@@ -174,3 +194,4 @@ class WorkerBee(Bee):
             self._behave_guard(dt, width, height, rng, world)
         else:
             super().step(dt, width, height, rng)
+

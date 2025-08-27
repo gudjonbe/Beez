@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BeeSim Web UI</title>
-  <link rel="stylesheet" href="/style.css?v=7" />
+  <link rel="stylesheet" href="/style.css?v=10" />
 </head>
 <body>
   <div id="layout">
@@ -49,6 +49,9 @@
         <div class="divider"></div>
         <div><b>Signals (live)</b></div>
         <div id="signalStats" class="stats-list"></div>
+        <div class="divider"></div>
+        <div>Receiver queue: <b><span id="receiverQueue">0.0</span></b></div>
+        <div>Active waggles: <b><span id="waggleActive">0</span></b></div>
       </div>
 
       <h2>Future Panel</h2>
@@ -56,8 +59,7 @@
     </div>
     <div id="main"><canvas id="view" width="960" height="540"></canvas></div>
   </div>
-  <!-- IMPORTANT: type="module" + cache-bust -->
-  <script type="module" src="/app.js?v=7"></script>
+  <script type="module" src="/app.js?v=10"></script>
 </body>
 </html>
 

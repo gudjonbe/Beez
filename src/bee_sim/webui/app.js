@@ -1,6 +1,5 @@
-// Make sure we import the same version and see a startup log
-import { WSClient } from "./ws_client.js?v=7";
-console.log("[ui] app.js loaded v7");
+import { WSClient } from "./ws_client.js?v=10";
+console.log("[ui] app.js loaded v10");
 
 const kindSelect  = document.getElementById("beeKind");
 const canvas      = document.getElementById("view");
@@ -17,6 +16,8 @@ const flowersLeftEl = document.getElementById("flowersLeft");
 const depositedEl = document.getElementById("deposited");
 const roleStatsEl = document.getElementById("roleStats");
 const signalStatsEl = document.getElementById("signalStats");
+const queueEl = document.getElementById("receiverQueue");
+const waggleEl = document.getElementById("waggleActive");
 
 const ws = new WSClient();
 ws.connect();
@@ -84,6 +85,12 @@ ws.onView((view) => {
     const sigs = view.stats.signals;
     signalStatsEl.innerHTML = Object.keys(sigs).sort().map(k => `<div>${k}: <b>${sigs[k]}</b></div>`).join("");
   }
+  if (queueEl && view.stats) {
+    queueEl.textContent = (view.stats.receiver_queue ?? 0).toFixed(1);
+  }
+  if (waggleEl && view.stats) {
+    waggleEl.textContent = view.stats.waggle_active ?? 0;
+  }
 
   if (canvas.width !== view.width || canvas.height !== view.height) {
     canvas.width  = view.width;
@@ -100,7 +107,7 @@ function draw(v) {
 
   if (!v) return;
 
-  // hive
+  // hive ring
   if (v.world && v.world.hive) {
     const hvc = v.world.hive;
     ctx.beginPath();
@@ -139,7 +146,7 @@ function draw(v) {
       ctx.stroke();
     }
 
-    // foragers use the bee emoji; others keep the small circle
+    // 🐝 for foragers; circle for others
     if (b.role === 'forager') {
       ctx.font = '8px system-ui, emoji';
       ctx.textAlign = 'center';
@@ -152,7 +159,7 @@ function draw(v) {
       ctx.fill();
     }
 
-    // heading tick (all non-queen bees)
+    // heading tick
     const dx = Math.cos(b.heading) * 6;
     const dy = Math.sin(b.heading) * 6;
     ctx.beginPath();

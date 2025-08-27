@@ -16,6 +16,7 @@ class BeeView:
     heading: float
     kind: str
     flash: float
+    role: str = "unknown"
 
 class SimController:
     def __init__(self, width: int = 960, height: int = 540, seed: int | None = None):
@@ -29,7 +30,7 @@ class SimController:
         # One queen by default
         qx, qy = self.world.hive
         self._bees.append(QueenBee(self._next_id, qx, qy)); self._next_id += 1
-        # Seed some workers
+        # Seed workers
         for _ in range(5):
             self._bees.append(self._new_worker())
 
@@ -77,12 +78,17 @@ class SimController:
         return dict(c)
 
     def get_view(self) -> dict:
-        bees_view = [b.snapshot() for b in self._bees]  # no dataclass construction
-        stats = {"roles": self._role_counts(), "signals": self._signal_counts()}
+        bees_view = [BeeView(**b.snapshot()) for b in self._bees]
+        stats = {
+            "roles": self._role_counts(),
+            "signals": self._signal_counts(),
+            "receiver_queue": getattr(self.world, "_hive").receiver_queue,
+            "waggle_active": self.world.waggle_active(),
+        }
         return {
             "t": self._t, "paused": self._paused, "speed": self._speed,
             "width": self.width, "height": self.height,
-            "bees": bees_view,
+            "bees": [bv.__dict__ for bv in bees_view],
             "world": self.world.snapshot(),
             "stats": stats,
         }

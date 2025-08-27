@@ -30,7 +30,7 @@ class SimController:
         self._t = 0.0; self._next_id = 1; self._bees: list[Bee] = []
         self._paused = False; self._speed = 1.0
         self.world = World(width, height, self.rng)
-        self.add_bees(5)
+        self.add_bees(100)
 
     # --- control
     def set_paused(self, paused: bool) -> None: self._paused = paused

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Iterable, Optional, Set, List, Dict, Tuple
+from typing import Iterable, Optional, List, Dict, Tuple
 import math
 
 # ---------------------------
@@ -25,33 +25,28 @@ class Signal:
 
     def falloff(self, px: float, py: float) -> float:
         """
-        Spatial attenuation in [0,1] within radius.
-        Smoothly decays to 0 at radius (cosine falloff).
+        Spatial attenuation in [0,1] within radius (cosine falloff).
+        1 at center, 0 at radius.
         """
         dx, dy = px - self.x, py - self.y
         d = math.hypot(dx, dy)
         if d >= self.radius or self.radius <= 1e-6:
             return 0.0
-        # cosine falloff: 1 at center, 0 at radius
         t = d / self.radius
         return 0.5 * (1.0 + math.cos(math.pi * t))
 
-
     def strength_at(self, px: float, py: float) -> float:
-        """Current local strength considering spatial falloff and current intensity."""
+        """Current local strength considering spatial falloff and intensity."""
         return self.intensity * self.falloff(px, py)
 
+    # Compatibility alias for older code paths
     def sense_strength(self, px: float, py: float) -> float:
-        """Alias for compatibility with older code paths."""
         return self.strength_at(px, py)
-
-
 
     def step(self, dt: float) -> None:
         """Advance time: exponential intensity decay and ttl countdown."""
         if dt <= 0.0:
             return
-        # exponential decay: I(t+dt) = I * exp(-decay*dt)
         self.intensity *= math.exp(-max(0.0, self.decay) * dt)
         self.ttl -= dt
 
@@ -66,13 +61,12 @@ class SignalBus:
     API used by the sim:
       - emit(Signal)
       - step(dt)
-      - strongest(x, y, kinds: Optional[Set[str]]) -> Optional[Signal]
+      - strongest(x, y, kinds: Optional[Iterable[str]]) -> Optional[Signal]
       - query(x, y, kinds=None, *, min_strength=..., limit=..., with_strength=False)
-      - .signals (list) for inspection/stats
+      - .signals (list) for stats/inspection
     """
     def __init__(self):
         self.signals: List[Signal] = []
-        # Per-kind index (rebuilt each step)
         self._by_kind: Dict[str, List[Signal]] = {}
 
     # --- lifecycle ----------------------------------------------------------
@@ -94,10 +88,6 @@ class SignalBus:
 
     # --- queries ------------------------------------------------------------
     def strongest(self, x: float, y: float, kinds: Optional[Iterable[str]] = None) -> Optional[Signal]:
-        """
-        Return the single signal (optionally filtered by kinds) with the highest
-        local strength at (x,y). We return the Signal object so callers can read .payload.
-        """
         if kinds is None:
             pool = self.signals
         else:
@@ -124,14 +114,7 @@ class SignalBus:
         limit: int = 16,
         with_strength: bool = False,
     ) -> List[Signal] | List[Tuple[Signal, float]]:
-        """
-        Return nearby signals at (x,y), strongest first.
-
-        - kinds: filter by set/list of kinds; None = all
-        - min_strength: drop very weak influences
-        - limit: top-N strongest results
-        - with_strength: if True, return (signal, strength) tuples
-        """
+        """Return nearby signals at (x,y), strongest first."""
         if kinds is None:
             pool = self.signals
         else:
@@ -145,17 +128,12 @@ class SignalBus:
             if val >= min_strength:
                 scored.append((s, val))
 
-        # strongest first
         scored.sort(key=lambda sv: sv[1], reverse=True)
         if limit > 0:
             scored = scored[:limit]
 
-        if with_strength:
-            return scored
-        else:
-            return [s for (s, _) in scored]
+        return scored if with_strength else [s for (s, _) in scored]
 
-    # Convenience: counts by kind (handy for stats)
     def counts(self) -> Dict[str, int]:
         return {k: len(v) for k, v in self._by_kind.items()}
 

@@ -7,17 +7,27 @@ __pycache__/
 *.so
 
 # Distribution / packaging
-dist/
 build/
+dist/
 *.egg-info/
 *.egg
+pip-wheel-metadata/
+__pypackages__/
+
+# PyInstaller
+*.manifest
+*.spec
 
 # Virtual environments
+.venv/
 venv/
 env/
 ENV/
 .env/
-.venv/
+.env
+.env.*
+.envrc
+.python-version
 
 # Unit test / coverage reports
 htmlcov/
@@ -25,12 +35,47 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.pytest_cache/
 nosetests.xml
 coverage.xml
 *.cover
 
+# Type checkers / linters
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# ZIP files
+# Logs & DBs
+*.log
+logs/
+*.sqlite3
+*.db
+
+# Editors / IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS/editor cruft
+.DS_Store
+*~
+*.swp
+*.swo
+*.swn
+
+# Frontend (safe even if unused)
+node_modules/
+.parcel-cache/
+.webpack-cache/
+
+# Archives
 *.zip
+*.tar.gz
+*.tgz
+*.gz
+*.bz2
+*.7z
+

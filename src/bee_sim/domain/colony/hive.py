@@ -3,15 +3,12 @@ from dataclasses import dataclass
 
 @dataclass
 class Hive:
-    """Simple hive model with zones and a receiver queue."""
+    """Hive model with zones and a receiver queue."""
     x: float
     y: float
     radius: float
 
-    # queue state
     receiver_queue: float = 0.0
-
-    # zone proportions (tweakable)
     brood_frac: float = 0.55  # brood zone as fraction of radius
 
     @property
@@ -36,9 +33,5 @@ class Hive:
         return amount
 
     def snapshot(self) -> dict:
-        return {
-            "x": self.x, "y": self.y, "r": self.radius,
-            "queue": self.receiver_queue,
-            "brood_r": self.brood_radius,
-        }
+        return {"x": self.x, "y": self.y, "r": self.radius, "queue": self.receiver_queue}
 

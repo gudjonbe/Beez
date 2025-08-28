@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Iterable
 import random
 
 from bee_sim.domain.colony.hive import Hive
@@ -11,25 +11,38 @@ class World:
     def __init__(self, width: int, height: int, rng: random.Random):
         self.width = width; self.height = height; self.rng = rng
 
-        # Hive geometry (keep legacy attributes for compatibility)
+        # Hive geometry (keep legacy tuple/float for compatibility)
         hx, hy = width * 0.5, height * 0.55
         hr = min(width, height) * 0.12
-        self.hive = (hx, hy)           # kept for existing code
-        self.hive_radius = hr          # kept for existing code
-        self._hive = Hive(hx, hy, hr)  # new richer hive model
+        self.hive = (hx, hy)           # used in many places
+        self.hive_radius = hr          # used in many places
+        self._hive = Hive(hx, hy, hr)  # richer hive model
 
         # Signals & environment
         self.signals = SignalBus()
         self.flowers = FlowerField(width, height, rng)
         self.total_deposited: float = 0.0
 
-        # Field emitters accumulators
+        # Slow field emitters (Phase B)
         self._primer_acc = 0.0
         self._brood_acc = 0.0
 
     # --- external API kept stable ---
     def get_flower(self, flower_id: int):
-        return self.flowers.get(flower_id)
+        """Robust accessor that tolerates different FlowerField backends."""
+        F = self.flowers
+        # Preferred
+        if hasattr(F, "get"):
+            return F.get(flower_id)
+        # Common storage patterns
+        store = getattr(F, "flowers", None)
+        if isinstance(store, dict):
+            return store.get(flower_id)
+        if isinstance(store, (list, tuple)):
+            for f in store:
+                if getattr(f, "id", None) == flower_id:
+                    return f
+        return None
 
     def deposit(self, nectar: float) -> None:
         if nectar > 0:
@@ -53,21 +66,22 @@ class World:
         self.flowers.step(dt)
         self.signals.step(dt)
 
-        # slow field emissions (brood pheromone, forager primer)
+        # slow fields: brood pheromone (nurse bias) + forager primer (slows nurse→forager)
         self._brood_acc += dt
         self._primer_acc += dt
 
         if self._brood_acc >= 1.0:
             self._brood_acc = 0.0
             hx, hy = self.hive
-            self.signals.emit(Signal(kind="brood_pheromone", x=hx, y=hy, radius=self._hive.brood_radius,
+            self.signals.emit(Signal(kind="brood_pheromone", x=hx, y=hy,
+                                     radius=self._hive.brood_radius,
                                      intensity=0.5, decay=0.12, ttl=3.0, source_id=0))
 
         if self._primer_acc >= 2.0:
             self._primer_acc = 0.0
             hx, hy = self.hive
-            # light global primer centered at hive; very slow decay, long ttl
-            self.signals.emit(Signal(kind="forager_primer", x=hx, y=hy, radius=self.hive_radius * 2.0,
+            self.signals.emit(Signal(kind="forager_primer", x=hx, y=hy,
+                                     radius=self.hive_radius * 2.0,
                                      intensity=0.25, decay=0.05, ttl=6.0, source_id=0))
 
     # --- receivers drain helper called by receiver bees ---
@@ -81,68 +95,64 @@ class World:
         # Count active waggle signals as a proxy for recruitment intensity
         return sum(1 for s in self.signals.signals if s.kind == "waggle")
 
-    def snapshot(self) -> dict:
-        hx, hy = self.hive
-
-        # --- build a flower list robustly across different FlowerField APIs ---
-        flowers_list = []
+    def _flowers_snapshot_list(self) -> list[dict]:
+        """Robust flower snapshot across different FlowerField implementations."""
         F = self.flowers
-
-        try:
-            if hasattr(F, "all"):
-                # iterable of Flower objects
-                flowers_list = [ (f.snapshot() if hasattr(f, "snapshot")
-                                  else {"x": getattr(f, "x", 0.0),
-                                        "y": getattr(f, "y", 0.0),
-                                        "frac": getattr(f, "frac", 1.0),
-                                        "id": getattr(f, "id", None)}) 
-                                 for f in F.all() ]
-            elif hasattr(F, "snapshot"):
-                # some implementations return a ready-to-serve list[dict]
+        # Prefer a ready-made list from snapshot()
+        if hasattr(F, "snapshot"):
+            try:
                 val = F.snapshot()
                 if isinstance(val, list):
-                    flowers_list = val
-                else:
-                    # if it returns a dict or something else, fall back below
-                    pass
-            elif hasattr(F, "to_list"):
-                flowers_list = [ (f.snapshot() if hasattr(f, "snapshot")
-                                  else {"x": getattr(f, "x", 0.0),
-                                        "y": getattr(f, "y", 0.0),
-                                        "frac": getattr(f, "frac", 1.0),
-                                        "id": getattr(f, "id", None)})
-                                 for f in F.to_list() ]
-            elif hasattr(F, "iter"):
-                flowers_list = [ (f.snapshot() if hasattr(f, "snapshot")
-                                  else {"x": getattr(f, "x", 0.0),
-                                        "y": getattr(f, "y", 0.0),
-                                        "frac": getattr(f, "frac", 1.0),
-                                        "id": getattr(f, "id", None)})
-                                 for f in F.iter() ]
-            elif hasattr(F, "flowers"):
-                # common internal: dict of id->Flower or list of Flower
-                store = getattr(F, "flowers")
-                if isinstance(store, dict):
-                    it = store.values()
-                elif isinstance(store, (list, tuple)):
-                    it = store
-                else:
-                    it = []
-                flowers_list = [ (f.snapshot() if hasattr(f, "snapshot")
-                                  else {"x": getattr(f, "x", 0.0),
-                                        "y": getattr(f, "y", 0.0),
-                                        "frac": getattr(f, "frac", 1.0),
-                                        "id": getattr(f, "id", None)})
-                                 for f in it ]
-        except Exception:
-            # last resort: show nothing rather than crashing
-            flowers_list = []
+                    return val
+            except Exception:
+                pass
 
+        # Next, try common container patterns
+        it: Iterable = []
+        if hasattr(F, "all"):
+            try:
+                it = list(F.all())
+            except Exception:
+                it = []
+        elif hasattr(F, "to_list"):
+            try:
+                it = list(F.to_list())
+            except Exception:
+                it = []
+        elif hasattr(F, "iter"):
+            try:
+                it = list(F.iter())
+            except Exception:
+                it = []
+        elif hasattr(F, "flowers"):
+            store = getattr(F, "flowers")
+            if isinstance(store, dict):
+                it = list(store.values())
+            elif isinstance(store, (list, tuple)):
+                it = list(store)
+        # Build dicts
+        out: list[dict] = []
+        for f in it:
+            if hasattr(f, "snapshot"):
+                try:
+                    out.append(f.snapshot()); continue
+                except Exception:
+                    pass
+            out.append({
+                "x": float(getattr(f, "x", 0.0)),
+                "y": float(getattr(f, "y", 0.0)),
+                "frac": float(getattr(f, "frac", 1.0)),
+                "id": getattr(f, "id", None)
+            })
+        return out
+
+    def snapshot(self) -> dict:
+        hx, hy = self.hive
         return {
             "hive": {"x": hx, "y": hy, "r": self.hive_radius},
             "flowers_remaining": self.flowers.remaining(),
             "total_deposited": self.total_deposited,
             "hive_queue": self._hive.receiver_queue,
-            "flowers": flowers_list,
+            "flowers": self._flowers_snapshot_list(),
         }
 

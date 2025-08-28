@@ -36,7 +36,7 @@ class Signal:
         return 0.5 * (1.0 + math.cos(math.pi * t))
 
     def strength_at(self, px: float, py: float) -> float:
-        """Current local strength considering spatial falloff and intensity."""
+        """Local strength considering spatial falloff and intensity."""
         return self.intensity * self.falloff(px, py)
 
     # Compatibility alias for older code paths

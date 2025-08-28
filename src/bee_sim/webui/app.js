@@ -1,5 +1,5 @@
-import { WSClient } from "./ws_client.js?v=10";
-console.log("[ui] app.js loaded v10");
+import { WSClient } from "./ws_client.js?v=11";
+console.log("[ui] app.js loaded v11");
 
 const kindSelect  = document.getElementById("beeKind");
 const canvas      = document.getElementById("view");
@@ -9,6 +9,11 @@ const playPauseBtn = document.getElementById("playpause");
 const speedSlider  = document.getElementById("speed");
 const speedLabel   = document.getElementById("speedLabel");
 
+const recvRate     = document.getElementById("recvRate");
+const recvRateLbl  = document.getElementById("recvRateLabel");
+const tremble      = document.getElementById("tremble");
+const trembleLbl   = document.getElementById("trembleLabel");
+
 const beesCount = document.getElementById("beesCount");
 const simTime   = document.getElementById("simTime");
 const pausedEl  = document.getElementById("paused");
@@ -17,7 +22,9 @@ const depositedEl = document.getElementById("deposited");
 const roleStatsEl = document.getElementById("roleStats");
 const signalStatsEl = document.getElementById("signalStats");
 const queueEl = document.getElementById("receiverQueue");
+const queueAvgEl = document.getElementById("queueAvg");
 const waggleEl = document.getElementById("waggleActive");
+const receiversActiveEl = document.getElementById("receiversActive");
 
 const ws = new WSClient();
 ws.connect();
@@ -54,6 +61,18 @@ speedSlider.addEventListener('input', () => {
   ws.speed(v);
 });
 
+// Phase B controls
+recvRate.addEventListener('input', () => {
+  const v = parseFloat(recvRate.value);
+  recvRateLbl.textContent = v.toFixed(1);
+  ws.setParam('receiver_rate', v);
+});
+tremble.addEventListener('input', () => {
+  const v = parseFloat(tremble.value);
+  trembleLbl.textContent = v.toFixed(1);
+  ws.setParam('tremble_threshold', v);
+});
+
 // Play / Pause
 playPauseBtn.addEventListener('click', () => ws.toggle());
 
@@ -88,8 +107,14 @@ ws.onView((view) => {
   if (queueEl && view.stats) {
     queueEl.textContent = (view.stats.receiver_queue ?? 0).toFixed(1);
   }
+  if (queueAvgEl && view.stats) {
+    queueAvgEl.textContent = (view.stats.queue_avg ?? 0).toFixed(1);
+  }
   if (waggleEl && view.stats) {
     waggleEl.textContent = view.stats.waggle_active ?? 0;
+  }
+  if (receiversActiveEl && view.stats) {
+    receiversActiveEl.textContent = view.stats.receivers_active ?? 0;
   }
 
   if (canvas.width !== view.width || canvas.height !== view.height) {
@@ -99,6 +124,17 @@ ws.onView((view) => {
 });
 
 // ---- rendering ----
+function signalColor(kind) {
+  switch (kind) {
+    case 'waggle': return 'rgba(255, 220, 90, ';
+    case 'tremble': return 'rgba(255, 140, 40, ';
+    case 'nasonov':
+    case 'fanning': return 'rgba(90, 150, 255, ';
+    case 'queen_mandibular': return 'rgba(200, 130, 255, ';
+    default: return 'rgba(255, 242, 179, ';
+  }
+}
+
 function draw(v) {
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
@@ -115,6 +151,25 @@ function draw(v) {
     ctx.strokeStyle = '#66b2ff';
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // brood disk (Phase B overlay)
+    const br = v.world.hive_brood_r ?? (hvc.r * 0.55);
+    ctx.beginPath();
+    ctx.arc(hvc.x, hvc.y, br, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 180, 200, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // entrance marker
+    const ex = (v.world.hive_entrance?.x ?? hvc.x);
+    const ey = (v.world.hive_entrance?.y ?? (hvc.y - hvc.r));
+    ctx.beginPath();
+    ctx.moveTo(ex, ey - 4);
+    ctx.lineTo(ex - 4, ey + 4);
+    ctx.lineTo(ex + 4, ey + 4);
+    ctx.closePath();
+    ctx.fillStyle = '#66b2ff';
+    ctx.fill();
   }
 
   // flowers
@@ -136,12 +191,13 @@ function draw(v) {
   const queens  = v.bees.filter(b => b.kind === 'queen');
 
   function drawWorker(b) {
-    // flash halo if recently emitted a signal
+    // colored halo if recently emitted a signal
     if (b.flash && b.flash > 0) {
       const alpha = Math.max(0, Math.min(1, b.flash));
+      const base = signalColor(b.flash_kind);
       ctx.beginPath();
       ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255, 220, 90, ${alpha})`;
+      ctx.strokeStyle = `${base}${alpha})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -177,13 +233,14 @@ function draw(v) {
   for (const b of queens) {
     if (b.flash && b.flash > 0) {
       const alpha = Math.max(0, Math.min(1, b.flash));
+      const base = signalColor(b.flash_kind);
       ctx.beginPath();
       ctx.arc(b.x, b.y, 9, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255, 220, 90, ${alpha})`;
+      ctx.strokeStyle = `${base}${alpha})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    ctx.font = '10px system-ui, emoji';
+    ctx.font = '18px system-ui, emoji';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('👑', b.x, b.y);

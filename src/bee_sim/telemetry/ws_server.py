@@ -181,6 +181,9 @@ class ClientSession:
                 value = float(data.get("value", 1.0))
             except (TypeError, ValueError):
                 await self._error("speed requires a numeric 'value'")
+
+
+                
             else:
                 _sim.set_speed(value)
                 await self._ack({"speed": value})
@@ -218,6 +221,24 @@ class ClientSession:
             else:
                 _sim.world.add_flower_at(x, y, n=n)
                 await self._ack({"flowers_added": n, "at": [x, y]})
+
+
+        elif action == "set_param":
+            key = data.get("key")
+            try:
+                value = float(data.get("value"))
+            except (TypeError, ValueError):
+                await self._error("set_param requires numeric 'value'")
+                return
+            if key == "receiver_rate":
+                _sim.set_receiver_rate(value)
+                await self._ack({"param": key, "value": value})
+            elif key == "tremble_threshold":
+                _sim.set_tremble_threshold(value)
+                await self._ack({"param": key, "value": value})
+            else:
+                await self._error(f"unknown param: {key}")
+
 
         # --- Unknown --------------------------------------------------------
         else:

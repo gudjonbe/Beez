@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Iterable
-import random
+import random, math
 
 from bee_sim.domain.colony.hive import Hive
 from bee_sim.domain.environment.flowers import FlowerField
@@ -26,6 +26,10 @@ class World:
         # Slow field emitters (Phase B)
         self._primer_acc = 0.0
         self._brood_acc = 0.0
+
+        # Queue EMA for UI stats
+        self._queue_ema = 0.0
+        self._queue_tau = 2.0  # seconds
 
     # --- external API kept stable ---
     def get_flower(self, flower_id: int):
@@ -84,6 +88,11 @@ class World:
                                      radius=self.hive_radius * 2.0,
                                      intensity=0.25, decay=0.05, ttl=6.0, source_id=0))
 
+        # Update queue EMA
+        q = self._hive.receiver_queue
+        alpha = 1.0 - math.exp(-max(1e-6, dt) / max(1e-6, self._queue_tau))
+        self._queue_ema += (q - self._queue_ema) * alpha
+
     # --- receivers drain helper called by receiver bees ---
     def service_receiver(self, dt: float, rate_per_bee: float = 1.2) -> None:
         drained = self._hive.drain(dt, rate_per_bee)
@@ -110,27 +119,19 @@ class World:
         # Next, try common container patterns
         it: Iterable = []
         if hasattr(F, "all"):
-            try:
-                it = list(F.all())
-            except Exception:
-                it = []
+            try: it = list(F.all())
+            except Exception: it = []
         elif hasattr(F, "to_list"):
-            try:
-                it = list(F.to_list())
-            except Exception:
-                it = []
+            try: it = list(F.to_list())
+            except Exception: it = []
         elif hasattr(F, "iter"):
-            try:
-                it = list(F.iter())
-            except Exception:
-                it = []
+            try: it = list(F.iter())
+            except Exception: it = []
         elif hasattr(F, "flowers"):
             store = getattr(F, "flowers")
-            if isinstance(store, dict):
-                it = list(store.values())
-            elif isinstance(store, (list, tuple)):
-                it = list(store)
-        # Build dicts
+            if isinstance(store, dict): it = list(store.values())
+            elif isinstance(store, (list, tuple)): it = list(store)
+
         out: list[dict] = []
         for f in it:
             if hasattr(f, "snapshot"):
@@ -148,11 +149,15 @@ class World:
 
     def snapshot(self) -> dict:
         hx, hy = self.hive
+        ex, ey = self.hive_entrance()
         return {
             "hive": {"x": hx, "y": hy, "r": self.hive_radius},
+            "hive_brood_r": self._hive.brood_radius,
+            "hive_entrance": {"x": ex, "y": ey},
             "flowers_remaining": self.flowers.remaining(),
             "total_deposited": self.total_deposited,
             "hive_queue": self._hive.receiver_queue,
+            "queue_avg": self._queue_ema,
             "flowers": self._flowers_snapshot_list(),
         }
 

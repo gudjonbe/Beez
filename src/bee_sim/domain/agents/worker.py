@@ -8,8 +8,20 @@ from .roles import Role
 from .behaviors.communication import sense_signals, drives_from_senses
 from bee_sim.domain.communication.signals import Signal
 
+# ---- dynamic Phase-B params (controlled from UI) ---------------------------
 TREM_QUEUE_HIGH = 8.0   # queue threshold to trigger tremble
 RECEIVER_RATE = 1.2     # nectar/sec drained by a receiver
+
+def set_tremble_threshold(v: float) -> None:
+    global TREM_QUEUE_HIGH
+    try: TREM_QUEUE_HIGH = max(0.0, float(v))
+    except Exception: pass
+
+def set_receiver_rate(v: float) -> None:
+    global RECEIVER_RATE
+    try: RECEIVER_RATE = max(0.0, float(v))
+    except Exception: pass
+# ---------------------------------------------------------------------------
 
 class WorkerBee(Bee):
     """Worker with role-based behavior, foraging, and basic communication."""
@@ -33,6 +45,7 @@ class WorkerBee(Bee):
         self._avoid: Deque[int] = deque(maxlen=self.AVOID_MEMORY)
         self._recruit_target: Optional[tuple[float, float]] = None
         self._last_flower_xy: Optional[tuple[float, float]] = None
+        self.last_signal_kind: Optional[str] = None
 
     # --- shared helpers ---
     def _go_towards(self, x: float, y: float, dt: float, speed_scale: float = 0.6):
@@ -108,6 +121,7 @@ class WorkerBee(Bee):
                     if q >= TREM_QUEUE_HIGH:
                         world.signals.emit(Signal(kind="tremble", x=hx, y=hy, radius=35.0,
                                                   intensity=1.0, decay=0.5, ttl=3.0, source_id=self.id))
+                        self.last_signal_kind = "tremble"
                         self.flash_timer = max(self.flash_timer, 0.5)
                     elif self._last_flower_xy and self.carry >= self.WAGGLE_THRESHOLD:
                         lx, ly = self._last_flower_xy
@@ -117,6 +131,7 @@ class WorkerBee(Bee):
                             decay=0.35, ttl=self.WAGGLE_TTL, source_id=self.id,
                             payload={"tx": float(lx), "ty": float(ly)}
                         ))
+                        self.last_signal_kind = "waggle"
                         self.flash_timer = max(self.flash_timer, 0.5)
                     self.carry = 0.0
                 self.state = "wander"
@@ -154,6 +169,7 @@ class WorkerBee(Bee):
             self._random_walk(dt*0.3, rng)
             world.signals.emit(Signal(kind="nasonov", x=ex, y=ey, radius=60.0, intensity=0.6, decay=0.5, ttl=1.2, source_id=self.id))
             world.signals.emit(Signal(kind="fanning",  x=ex, y=ey, radius=50.0, intensity=0.4, decay=0.6, ttl=1.0, source_id=self.id))
+            self.last_signal_kind = "nasonov"
             self.flash_timer = max(self.flash_timer, 0.3)
         self._clamp(width, height)
 
@@ -194,4 +210,14 @@ class WorkerBee(Bee):
             self._behave_guard(dt, width, height, rng, world)
         else:
             super().step(dt, width, height, rng)
+
+    # --- UI snapshot --------------------------------------------------------
+    def snapshot(self) -> dict:
+        heading = math.atan2(self.vy, self.vx)
+        return {
+            "id": self.id, "x": self.x, "y": self.y,
+            "heading": heading, "kind": self.kind,
+            "flash": self.flash_timer, "role": getattr(self, "role", "unknown"),
+            "flash_kind": self.last_signal_kind,
+        }
 

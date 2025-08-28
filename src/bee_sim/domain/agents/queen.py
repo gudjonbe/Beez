@@ -6,14 +6,13 @@ from bee_sim.domain.communication.signals import Signal
 class QueenBee(Bee):
     """Simple queen: stays near hive center, emits mandibular pheromone pulses."""
     def __init__(self, id: int, x: float, y: float):
-        # vx, vy start at zero (she moves slowly)
         super().__init__(id, x, y, 0.0, 0.0)
         self.kind = "queen"
         self.role = "queen"
-        self._emit_acc = 0.0  # timer for pheromone pulse
+        self._emit_acc = 0.0
+        self.last_signal_kind = None
 
     def _go_towards(self, x: float, y: float, dt: float, speed_scale: float = 0.3):
-        """Small shared helper (queen has one too to avoid earlier AttributeError)."""
         dx, dy = (x - self.x), (y - self.y)
         angle = math.atan2(dy, dx)
         speed = 45.0 * speed_scale
@@ -29,7 +28,6 @@ class QueenBee(Bee):
             if dist > (world.hive_radius * 0.3):
                 self._go_towards(hx, hy, dt, speed_scale=0.6)
             else:
-                # tiny random walk near center
                 self._random_walk(dt * 0.25, rng)
 
             # emit queen mandibular pheromone periodically
@@ -40,10 +38,19 @@ class QueenBee(Bee):
                     kind="queen_mandibular", x=hx, y=hy, radius=world.hive_radius * 1.5,
                     intensity=0.6, decay=0.1, ttl=2.0, source_id=self.id
                 ))
+                self.last_signal_kind = "queen_mandibular"
                 self.flash_timer = max(self.flash_timer, 0.4)
         else:
-            # fallback if no world
             self._random_walk(dt * 0.25, rng)
 
         self._clamp(width, height)
+
+    def snapshot(self) -> dict:
+        heading = math.atan2(self.vy, self.vx)
+        return {
+            "id": self.id, "x": self.x, "y": self.y,
+            "heading": heading, "kind": self.kind,
+            "flash": self.flash_timer, "role": "queen",
+            "flash_kind": self.last_signal_kind,
+        }
 

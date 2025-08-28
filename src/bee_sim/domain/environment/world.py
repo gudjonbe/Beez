@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import Any, Iterable
-import random, math
+import random, math, inspect
 
 from bee_sim.domain.colony.hive import Hive
 from bee_sim.domain.environment.flowers import FlowerField
 from bee_sim.domain.communication.signals import Signal, SignalBus
+from bee_sim.domain.environment.weather import Weather
 
 class World:
     """Simulation world: hive, signals, flowers, deposits, environment."""
@@ -22,6 +23,9 @@ class World:
         self.signals = SignalBus()
         self.flowers = FlowerField(width, height, rng)
         self.total_deposited: float = 0.0
+
+        # Weather (Phase C.1)
+        self.weather = Weather(rng)
 
         # Slow field emitters (Phase B)
         self._primer_acc = 0.0
@@ -66,8 +70,31 @@ class World:
     def step(self, dt: float) -> None:
         if dt <= 0.0: return
 
-        # environment
-        self.flowers.step(dt)
+        # Weather first (affects flow/regeneration and foraging open)
+        self.weather.step(dt)
+        regen_scale = self.weather.nectar_index
+
+        # environment (flowers) — try passing regeneration scaling if supported
+        # Try common signatures: step(dt, regen_scale=...), step(dt, scale), step(dt, factor)
+        stepped = False
+        try:
+            self.flowers.step(dt, regen_scale=regen_scale); stepped = True
+        except TypeError:
+            try:
+                self.flowers.step(dt, regen_scale); stepped = True
+            except TypeError:
+                try:
+                    self.flowers.step(dt, scale=regen_scale); stepped = True
+                except TypeError:
+                    try:
+                        self.flowers.step(dt, factor=regen_scale); stepped = True
+                    except TypeError:
+                        pass
+        if not stepped:
+            # Fallback to original API
+            self.flowers.step(dt)
+
+        # signals
         self.signals.step(dt)
 
         # slow fields: brood pheromone (nurse bias) + forager primer (slows nurse→forager)
@@ -142,7 +169,7 @@ class World:
             out.append({
                 "x": float(getattr(f, "x", 0.0)),
                 "y": float(getattr(f, "y", 0.0)),
-                "frac": float(getattr(f, "frac", 1.0)),
+                "frac": float(getattr(f, "frac", 1.0)) if not callable(getattr(f, "frac", None)) else float(getattr(f, "frac")()),
                 "id": getattr(f, "id", None)
             })
         return out
@@ -150,6 +177,7 @@ class World:
     def snapshot(self) -> dict:
         hx, hy = self.hive
         ex, ey = self.hive_entrance()
+        wsnap = self.weather.snapshot()
         return {
             "hive": {"x": hx, "y": hy, "r": self.hive_radius},
             "hive_brood_r": self._hive.brood_radius,
@@ -159,5 +187,10 @@ class World:
             "hive_queue": self._hive.receiver_queue,
             "queue_avg": self._queue_ema,
             "flowers": self._flowers_snapshot_list(),
+            "weather": {
+                "tod": wsnap.tod, "nectar": wsnap.nectar,
+                "rain": wsnap.rain, "open": wsnap.open,
+                "mode": wsnap.mode,
+            },
         }
 

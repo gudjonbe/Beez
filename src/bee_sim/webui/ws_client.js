@@ -44,5 +44,10 @@ export class WSClient {
   addFlowers(count) { this.send({ type: 'cmd', action: 'add_flowers', count }); }
   addFlowerAt(x,y,n=1) { this.send({ type: 'cmd', action: 'add_flower_at', x, y, n }); }
   setParam(key, value) { this.send({ type: 'cmd', action: 'set_param', key, value }); }
+  // Add to the class WSClient (keep existing methods):
+  setWeatherMode(mode) { this.send({ type: 'cmd', action: 'weather', op: 'mode', value: mode }); }
+  setWeatherFlow(value) { this.send({ type: 'cmd', action: 'weather', op: 'flow', value }); }
+  setWeatherRain(flag) { this.send({ type: 'cmd', action: 'weather', op: 'rain', value: !!flag }); }
+
 }
 

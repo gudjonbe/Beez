@@ -239,6 +239,26 @@ class ClientSession:
             else:
                 await self._error(f"unknown param: {key}")
 
+        # --- Weather --------------------------------------------------------
+
+
+        elif action == "weather":
+            op = data.get("op")
+            if op == "mode":
+                mode = str(data.get("value", "auto"))
+                _sim.world.weather.set_mode(mode)
+                await self._ack({"weather_mode": mode})
+            elif op == "flow":
+                value = data.get("value", 0.7)
+                _sim.world.weather.set_flow(value)
+                await self._ack({"weather_flow": value})
+            elif op == "rain":
+                raining = bool(data.get("value", False))
+                _sim.world.weather.set_rain(raining)
+                await self._ack({"rain": raining})
+            else:
+                await self._error("weather op must be one of: mode, flow, rain")
+
 
         # --- Unknown --------------------------------------------------------
         else:

@@ -63,6 +63,19 @@ class WorkerBee(Bee):
 
     # --- role sub-behaviors ---
     def _behave_forager(self, dt: float, width: int, height: int, rng: random.Random, world: Any):
+
+        # Respect weather / foraging open
+        if hasattr(world, "weather") and not world.weather.foraging_open:
+            # stay near hive entrance when closed (rain/night)
+            hx, hy = world.hive
+            dist = math.hypot(hx - self.x, hy - self.y)
+            if dist > (world.hive_radius * 0.6):
+                self._go_towards(hx, hy, dt, speed_scale=0.7)
+            else:
+                self._random_walk(dt*0.3, rng)
+            self._clamp(width, height)
+            return
+
         if self.state == "wander":
             # waggle-follow: strongest waggle sampled in hive sets a soft target
             if self._inside_hive(world):

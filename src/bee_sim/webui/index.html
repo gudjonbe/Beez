@@ -1,77 +1,95 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BeeSim Web UI</title>
-  <link rel="stylesheet" href="/style.css?v=11" />
-</head>
-<body>
-  <div id="layout">
-    <div id="side-panel">
-      <h2>Controls</h2>
-      <div class="group"><button id="playpause">Play</button></div>
-      <div class="group">
-        <label for="speed">Speed: <span id="speedLabel">1.0x</span></label>
-        <input id="speed" type="range" min="0" max="4" value="1" step="0.1" />
-      </div>
-      <div class="group">
-        <label for="beeKind">Bee kind:</label>
-        <select id="beeKind">
-          <option value="worker" selected>Worker</option>
-          <option value="queen">Queen 👑</option>
-        </select>
-      </div>
-      <div class="group">
-        <button data-add="1">Add 1 bee</button>
-        <button data-add="10">Add 10 bees</button>
-        <button data-add="50">Add 50 bees</button>
-      </div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BeeSim Web UI</title>
+    <link rel="stylesheet" href="/style.css?v=12" />
+  </head>
+  <body>
+    <div id="layout">
+      <div id="side-panel">
+        <h2>Controls</h2>
+        <div class="group"><button id="playpause">Play</button></div>
+        <div class="group">
+          <label for="speed">Speed: <span id="speedLabel">1.0x</span></label>
+          <input id="speed" type="range" min="0" max="4" value="1" step="0.1" />
+        </div>
+        <div class="group">
+          <label for="beeKind">Bee kind:</label>
+          <select id="beeKind">
+            <option value="worker" selected>Worker</option>
+            <option value="queen">Queen 👑</option>
+          </select>
+        </div>
+        <div class="group">
+          <button data-add="1">Add 1 bee</button>
+          <button data-add="10">Add 10 bees</button>
+          <button data-add="50">Add 50 bees</button>
+        </div>
 
-      <h2>Flowers</h2>
-      <div class="group">
-        <button data-add-flower="10">Add 10 flowers</button>
-        <button data-add-flower="50">Add 50 flowers</button>
-        <button data-add-flower="100">Add 100 flowers</button>
-        <div class="note">Tip: click the canvas to add a flower at the cursor.</div>
-      </div>
+        <h2>Flowers</h2>
+        <div class="group">
+          <button data-add-flower="10">Add 10 flowers</button>
+          <button data-add-flower="50">Add 50 flowers</button>
+          <button data-add-flower="100">Add 100 flowers</button>
+          <div class="note">Tip: click the canvas to add a flower at the cursor.</div>
+        </div>
 
-      <h2>Phase B</h2>
-      <div class="group">
-        <label for="recvRate">Receiver rate: <span id="recvRateLabel">1.2</span> n/s</label>
-        <input id="recvRate" type="range" min="0" max="5" value="1.2" step="0.1" />
-      </div>
-      <div class="group">
-        <label for="tremble">Tremble threshold: <span id="trembleLabel">8.0</span> nectar</label>
-        <input id="tremble" type="range" min="0" max="20" value="8" step="0.5" />
-      </div>
+        <h2>Phase B</h2>
+        <div class="group">
+          <label for="recvRate">Receiver rate: <span id="recvRateLabel">1.2</span> n/s</label>
+          <input id="recvRate" type="range" min="0" max="5" value="1.2" step="0.1" />
+        </div>
+        <div class="group">
+          <label for="tremble">Tremble threshold: <span id="trembleLabel">8.0</span> nectar</label>
+          <input id="tremble" type="range" min="0" max="20" value="8" step="0.5" />
+        </div>
 
-      <h2>Stats</h2>
-      <div id="stats">
-        <div>Bees: <span id="beesCount">0</span></div>
-        <div>Flowers left: <span id="flowersLeft">0</span></div>
-        <div>Nectar deposited: <span id="deposited">0.0</span></div>
-        <div>t: <span id="simTime">0.00</span> s</div>
-        <div>Paused: <span id="paused">false</span></div>
-        <div class="divider"></div>
-        <div><b>Roles</b></div>
-        <div id="roleStats" class="stats-list"></div>
-        <div class="divider"></div>
-        <div><b>Signals (live)</b></div>
-        <div id="signalStats" class="stats-list"></div>
-        <div class="divider"></div>
-        <div>Receiver queue: <b><span id="receiverQueue">0.0</span></b></div>
-        <div>Queue avg: <b><span id="queueAvg">0.0</span></b></div>
-        <div>Active waggles: <b><span id="waggleActive">0</span></b></div>
-        <div>Receivers active: <b><span id="receiversActive">0</span></b></div>
-      </div>
+        <h2>Weather</h2>
+        <div class="group">
+          <label for="wMode">Mode:</label>
+          <select id="wMode">
+            <option value="auto" selected>Auto (diurnal)</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+        <div class="group">
+          <label for="wFlow">Flow: <span id="wFlowLabel">0.7</span></label>
+          <input id="wFlow" type="range" min="0" max="1" value="0.7" step="0.05" />
+          <div class="note">Manual only. 0=dearth, 1=good flow.</div>
+        </div>
+        <div class="group">
+          <label><input type="checkbox" id="wRain" /> Rain (foraging closed)</label>
+        </div>
 
-      <h2>Future Panel</h2>
-      <div id="future"><div class="placeholder">Plots will go here.</div></div>
+
+        <h2>Stats</h2>
+        <div id="stats">
+          <div>Bees: <span id="beesCount">0</span></div>
+          <div>Flowers left: <span id="flowersLeft">0</span></div>
+          <div>Nectar deposited: <span id="deposited">0.0</span></div>
+          <div>t: <span id="simTime">0.00</span> s</div>
+          <div>Paused: <span id="paused">false</span></div>
+          <div class="divider"></div>
+          <div><b>Roles</b></div>
+          <div id="roleStats" class="stats-list"></div>
+          <div class="divider"></div>
+          <div><b>Signals (live)</b></div>
+          <div id="signalStats" class="stats-list"></div>
+          <div class="divider"></div>
+          <div>Receiver queue: <b><span id="receiverQueue">0.0</span></b></div>
+          <div>Queue avg: <b><span id="queueAvg">0.0</span></b></div>
+          <div>Active waggles: <b><span id="waggleActive">0</span></b></div>
+          <div>Receivers active: <b><span id="receiversActive">0</span></b></div>
+        </div>
+
+        <h2>Future Panel</h2>
+        <div id="future"><div class="placeholder">Plots will go here.</div></div>
+      </div>
+      <div id="main"><canvas id="view" width="960" height="540"></canvas></div>
     </div>
-    <div id="main"><canvas id="view" width="960" height="540"></canvas></div>
-  </div>
-  <script type="module" src="/app.js?v=11"></script>
-</body>
+    <script type="module" src="/app.js?v=12"></script>
+  </body>
 </html>
 

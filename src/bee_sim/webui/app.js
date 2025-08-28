@@ -1,5 +1,6 @@
-import { WSClient } from "./ws_client.js?v=11";
-console.log("[ui] app.js loaded v11");
+// Make sure we import the same version and see a startup log
+import { WSClient } from "./ws_client.js?v=12";
+console.log("[ui] app.js loaded v12");
 
 const kindSelect  = document.getElementById("beeKind");
 const canvas      = document.getElementById("view");
@@ -9,21 +10,29 @@ const playPauseBtn = document.getElementById("playpause");
 const speedSlider  = document.getElementById("speed");
 const speedLabel   = document.getElementById("speedLabel");
 
+// Phase B controls
 const recvRate     = document.getElementById("recvRate");
 const recvRateLbl  = document.getElementById("recvRateLabel");
 const tremble      = document.getElementById("tremble");
 const trembleLbl   = document.getElementById("trembleLabel");
 
+// Phase C controls (optional; guarded if not in HTML)
+const wMode       = document.getElementById("wMode");
+const wFlow       = document.getElementById("wFlow");
+const wFlowLabel  = document.getElementById("wFlowLabel");
+const wRain       = document.getElementById("wRain");
+
+// Stats
 const beesCount = document.getElementById("beesCount");
 const simTime   = document.getElementById("simTime");
 const pausedEl  = document.getElementById("paused");
 const flowersLeftEl = document.getElementById("flowersLeft");
-const depositedEl = document.getElementById("deposited");
-const roleStatsEl = document.getElementById("roleStats");
+const depositedEl   = document.getElementById("deposited");
+const roleStatsEl   = document.getElementById("roleStats");
 const signalStatsEl = document.getElementById("signalStats");
-const queueEl = document.getElementById("receiverQueue");
-const queueAvgEl = document.getElementById("queueAvg");
-const waggleEl = document.getElementById("waggleActive");
+const queueEl       = document.getElementById("receiverQueue");
+const queueAvgEl    = document.getElementById("queueAvg");
+const waggleEl      = document.getElementById("waggleActive");
 const receiversActiveEl = document.getElementById("receiversActive");
 
 const ws = new WSClient();
@@ -55,39 +64,71 @@ canvas.addEventListener('click', (e) => {
 });
 
 // Speed control
-speedSlider.addEventListener('input', () => {
-  const v = parseFloat(speedSlider.value);
-  speedLabel.textContent = `${v.toFixed(1)}x`;
-  ws.speed(v);
-});
+if (speedSlider) {
+  speedSlider.addEventListener('input', () => {
+    const v = parseFloat(speedSlider.value);
+    speedLabel.textContent = `${v.toFixed(1)}x`;
+    ws.speed(v);
+  });
+}
 
 // Phase B controls
-recvRate.addEventListener('input', () => {
-  const v = parseFloat(recvRate.value);
-  recvRateLbl.textContent = v.toFixed(1);
-  ws.setParam('receiver_rate', v);
-});
-tremble.addEventListener('input', () => {
-  const v = parseFloat(tremble.value);
-  trembleLbl.textContent = v.toFixed(1);
-  ws.setParam('tremble_threshold', v);
-});
+if (recvRate) {
+  recvRate.addEventListener('input', () => {
+    const v = parseFloat(recvRate.value);
+    recvRateLbl.textContent = v.toFixed(1);
+    ws.setParam('receiver_rate', v);
+  });
+}
+if (tremble) {
+  tremble.addEventListener('input', () => {
+    const v = parseFloat(tremble.value);
+    trembleLbl.textContent = v.toFixed(1);
+    ws.setParam('tremble_threshold', v);
+  });
+}
+
+// Phase C controls (guarded)
+if (wMode) {
+  wMode.addEventListener('change', () => {
+    ws.setWeatherMode(wMode.value);
+  });
+}
+if (wFlow) {
+  wFlow.addEventListener('input', () => {
+    const v = parseFloat(wFlow.value);
+    if (wFlowLabel) wFlowLabel.textContent = v.toFixed(2);
+    ws.setWeatherFlow(v);
+  });
+}
+if (wRain) {
+  wRain.addEventListener('change', () => {
+    ws.setWeatherRain(wRain.checked);
+  });
+}
 
 // Play / Pause
-playPauseBtn.addEventListener('click', () => ws.toggle());
+if (playPauseBtn) {
+  playPauseBtn.addEventListener('click', () => ws.toggle());
+}
 
 // ---- incoming view frames ----
 let lastView = null;
 ws.onView((view) => {
   lastView = view;
 
-  beesCount.textContent = view.bees.length;
-  simTime.textContent   = view.t.toFixed(2);
+  beesCount && (beesCount.textContent = view.bees.length);
+  simTime   && (simTime.textContent   = view.t.toFixed(2));
 
-  pausedEl.textContent  = view.paused ? 'true' : 'false';
-  playPauseBtn.textContent = view.paused ? 'Play' : 'Pause';
-
-  speedLabel.textContent = `${view.speed.toFixed(1)}x`;
+  if (pausedEl) {
+    pausedEl.textContent  = view.paused ? 'true' : 'false';
+  }
+  if (playPauseBtn) {
+    playPauseBtn.textContent = view.paused ? 'Play' : 'Pause';
+  }
+  if (speedLabel) {
+    speedLabel.textContent = `${view.speed.toFixed(1)}x`;
+  }
 
   if (flowersLeftEl && view.world) {
     flowersLeftEl.textContent = view.world.flowers_remaining ?? 0;
@@ -117,6 +158,22 @@ ws.onView((view) => {
     receiversActiveEl.textContent = view.stats.receivers_active ?? 0;
   }
 
+  // Reflect weather into controls, if present
+  const w = view.world?.weather;
+  if (w) {
+    if (wMode && wMode.value !== w.mode) wMode.value = w.mode;
+    if (typeof w.nectar === 'number' && wFlow) {
+      const n = Math.max(0, Math.min(1, w.nectar));
+      if (!document.activeElement || document.activeElement !== wFlow) {
+        wFlow.value = n.toFixed(2);
+        if (wFlowLabel) wFlowLabel.textContent = n.toFixed(2);
+      }
+    }
+    if (typeof w.rain === 'boolean' && wRain) {
+      wRain.checked = !!w.rain;
+    }
+  }
+
   if (canvas.width !== view.width || canvas.height !== view.height) {
     canvas.width  = view.width;
     canvas.height = view.height;
@@ -132,6 +189,40 @@ function signalColor(kind) {
     case 'fanning': return 'rgba(90, 150, 255, ';
     case 'queen_mandibular': return 'rgba(200, 130, 255, ';
     default: return 'rgba(255, 242, 179, ';
+  }
+}
+
+function drawWeatherOverlay(v) {
+  const w = v?.world?.weather;
+  if (!w) return;
+
+  const cx = 60, cy = 60, R = 34;
+
+  // ring background
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // time-of-day arc
+  const a = (w.tod || 0) * Math.PI * 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, -Math.PI/2, -Math.PI/2 + a, false);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // labels
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#d3e3ff';
+  ctx.fillText(`flow: ${(w.nectar ?? 0).toFixed(2)}`, 110, 40);
+  ctx.fillText(w.open ? 'foraging: open' : 'foraging: closed', 110, 56);
+  if (w.rain) {
+    ctx.fillStyle = '#66b2ff';
+    ctx.fillText('rain', 110, 72);
   }
 }
 
@@ -152,7 +243,7 @@ function draw(v) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // brood disk (Phase B overlay)
+    // brood disk
     const br = v.world.hive_brood_r ?? (hvc.r * 0.55);
     ctx.beginPath();
     ctx.arc(hvc.x, hvc.y, br, 0, Math.PI * 2);
@@ -245,6 +336,9 @@ function draw(v) {
     ctx.textBaseline = 'middle';
     ctx.fillText('👑', b.x, b.y);
   }
+
+  // weather overlay last (no-op if server doesn't send weather yet)
+  drawWeatherOverlay(v);
 }
 
 // animation loop

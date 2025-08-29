@@ -65,8 +65,35 @@ class SimController:
         if self._paused or dt <= 0.0: return
         dt *= self._speed; self._t += dt
         self.world.step(dt)
+
+        # Update nurse roster for demand taper
+        try:
+            nurses = self._role_counts().get("nurse", 0)
+            getattr(self.world, "_hive").set_nurses_current(nurses)
+        except Exception:
+            pass
         for b in self._bees:
             b.step(dt, self.width, self.height, self.rng, world=self.world)
+
+        # Cull dead bees
+        self._bees = [b for b in self._bees if not getattr(b, "dead", False)]
+
+        # Advance brood & spawn new workers
+        try:
+            hatched = getattr(self.world, "_hive").tick_brood(dt, self.rng, getattr(self.world, "signals", None))
+        except Exception:
+            hatched = 0
+        if hatched and hatched > 0:
+            hx, hy = self.world.hive
+            for _ in range(int(hatched)):
+                self._bees.append(WorkerBee(self._next_id, hx, hy, 0.0, 0.0)); self._next_id += 1
+
+        # Refresh nurse count after hatch/cull
+        try:
+            nurses = self._role_counts().get("nurse", 0)
+            getattr(self.world, "_hive").set_nurses_current(nurses)
+        except Exception:
+            pass
 
     def _role_counts(self) -> Dict[str,int]:
         c = Counter()
@@ -104,6 +131,9 @@ class SimController:
             "waggle_active": self.world.waggle_active(),
             "receivers_active": self._receivers_active(),
             "recruiting_foragers": self.world.waggle_active(),  # proxy
+            "nurses_current": int(getattr(getattr(self.world, "_hive"), "_nurses_current", 0)),
+            "nurses_target": int(getattr(getattr(self.world, "_hive"), "nurse_target")()),
+            "brood": getattr(getattr(self.world, "_hive"), "brood_snapshot")(),
         }
         return {
             "t": self._t, "paused": self._paused, "speed": self._speed,

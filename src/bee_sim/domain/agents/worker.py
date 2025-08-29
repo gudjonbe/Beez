@@ -8,6 +8,13 @@ from .roles import Role
 from .behaviors.communication import sense_signals, drives_from_senses
 from bee_sim.domain.communication.signals import Signal
 
+# Per-second energy costs per role (normalized)
+ENERGY_COST = {
+    "idle": 0.005, "forager": 0.02, "receiver": 0.015,
+    "nurse": 0.012, "fanner": 0.01, "guard": 0.012,
+}
+
+
 # ---- dynamic Phase-B params (controlled from UI) ---------------------------
 TREM_QUEUE_HIGH = 8.0   # queue threshold to trigger tremble
 RECEIVER_RATE = 1.2     # nectar/sec drained by a receiver
@@ -46,6 +53,51 @@ class WorkerBee(Bee):
         self._recruit_target: Optional[tuple[float, float]] = None
         self._last_flower_xy: Optional[tuple[float, float]] = None
         self.last_signal_kind: Optional[str] = None
+        # Life/energy state (randomized to avoid synchronized deaths)
+        _r = random.Random(int(self.id) * 9176 + int(self.x + self.y))
+        base_life = 2400.0
+        self._life_age = _r.uniform(0.0, base_life * 0.5)
+        self._life_lifespan = base_life + _r.uniform(-600.0, 600.0)
+        self._life_health = _r.uniform(0.8, 1.2)
+        self._energy = _r.uniform(0.6, 1.0)
+
+
+    # --- metabolism & mortality --------------------------------------------
+    def _metabolize(self, dt: float, world) -> None:
+        role = getattr(self, "role", "idle")
+        cost = ENERGY_COST.get(role, ENERGY_COST["idle"])
+        speed = (self.vx*self.vx + self.vy*self.vy) ** 0.5
+        move_scale = 1.0 + min(1.0, speed / max(1e-9, Bee.SPEED_MAX))
+        self._energy -= cost * move_scale * dt / max(0.5, self._life_health)
+        self._energy = max(0.0, min(1.5, self._energy))
+        self._life_age += dt
+
+        # refuel when inside brood disk (proxy stores)
+        hive = getattr(world, "_hive", None)
+        if hive is not None:
+            hx, hy = hive.x, hive.y
+            dx, dy = (self.x - hx), (self.y - hy)
+            if (dx*dx + dy*dy) <= (hive.brood_radius * 0.9) ** 2:
+                self._energy = min(1.0, self._energy + 0.04 * dt)
+
+    def _check_death(self, dt: float, world) -> bool:
+        if self._energy <= 0.0 or self._life_age >= self._life_lifespan:
+            self.dead = True
+            return True
+        age_frac = max(0.0, min(1.5, self._life_age / max(1e-9, self._life_lifespan)))
+        hazard = 0.0002 * dt * (1.0 + 2.0 * age_frac) * (1.2 - self._life_health)
+        if self._energy < 0.2:
+            hazard *= 3.0
+        rng = getattr(world, "rng", random)
+        try:
+            if rng.random() < hazard:
+                self.dead = True
+                return True
+        except Exception:
+            if random.random() < hazard:
+                self.dead = True
+                return True
+        return False
 
     # --- shared helpers ---
     def _go_towards(self, x: float, y: float, dt: float, speed_scale: float = 0.6):
@@ -170,8 +222,14 @@ class WorkerBee(Bee):
             self._go_towards(hx, hy, dt, speed_scale=0.6)
         else:
             self._random_walk(dt*0.4, rng)
+            # contribute brood care when near brood
+            hive_obj = getattr(world, "_hive", None)
+            if hive_obj is not None:
+                try:
+                    hive_obj.nurse_care(dt)
+                except Exception:
+                    pass
         self._clamp(width, height)
-
     def _behave_fanner(self, dt: float, width: int, height: int, rng: random.Random, world: Any):
         # go to entrance and emit nasonov/fanning periodically
         hx, hy = world.hive
@@ -205,7 +263,18 @@ class WorkerBee(Bee):
         senses = sense_signals(self.x, self.y, world)
         drives_from_senses(self.drives, senses, dt)
 
-        # 2) Pick role with hysteresis + dwell
+        
+        # Taper nurse drive if target already satisfied
+        try:
+            hive = getattr(world, "_hive", None)
+            if hive is not None:
+                target = hive.nurse_target()
+                current = getattr(hive, "_nurses_current", 0)
+                if target > 0 and current >= target:
+                    self.drives.nurse *= 0.3
+        except Exception:
+            pass
+# 2) Pick role with hysteresis + dwell
         self.role_policy.tick(dt)
         role: Role = self.role_policy.choose(self.drives)
         self.role = role
@@ -223,6 +292,18 @@ class WorkerBee(Bee):
             self._behave_guard(dt, width, height, rng, world)
         else:
             super().step(dt, width, height, rng)
+
+
+        # Metabolism & mortality after acting
+        try:
+            self._metabolize(dt, world)
+            if self._check_death(dt, world):
+                try:
+                    self.flash(0.3, kind="death")
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     # --- UI snapshot --------------------------------------------------------
     def snapshot(self) -> dict:

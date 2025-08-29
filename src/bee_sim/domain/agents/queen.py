@@ -11,6 +11,11 @@ class QueenBee(Bee):
         self.role = "queen"
         self._emit_acc = 0.0
         self.last_signal_kind = None
+        self._lay_acc = 0.0
+        self.lay_period = 3.0
+        self.lay_mean = 4
+        self.max_brood_buffer = 500
+
 
     def _go_towards(self, x: float, y: float, dt: float, speed_scale: float = 0.3):
         dx, dy = (x - self.x), (y - self.y)
@@ -20,6 +25,21 @@ class QueenBee(Bee):
         self.vy = speed * math.sin(angle)
         self.x += self.vx * dt
         self.y += self.vy * dt
+
+    
+    def _do_lay(self, world, rng):
+        hive = getattr(world, "_hive", None)
+        if hive is None:
+            return
+        snap = getattr(hive, "brood_snapshot", lambda: {})()
+        total_brood = int(snap.get("eggs", 0)) + int(snap.get("larvae", 0)) + int(snap.get("pupae", 0))
+        if total_brood > self.max_brood_buffer:
+            return
+        n = max(1, int(rng.expovariate(1.0 / max(1e-6, self.lay_mean))))
+        try:
+            hive.add_eggs(n, rng)
+        except Exception:
+            pass
 
     def step(self, dt: float, width: int, height: int, rng: random.Random, world=None):
         if world is not None:
@@ -42,6 +62,15 @@ class QueenBee(Bee):
                 self.flash_timer = max(self.flash_timer, 0.4)
         else:
             self._random_walk(dt * 0.25, rng)
+
+        # Lay eggs periodically
+        self._lay_acc += dt
+        if self._lay_acc >= self.lay_period:
+            self._lay_acc = 0.0
+            try:
+                self._do_lay(world, rng)
+            except Exception:
+                pass
 
         self._clamp(width, height)
 

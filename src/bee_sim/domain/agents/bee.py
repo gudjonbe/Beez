@@ -70,6 +70,6 @@ class Bee:
             "heading": self.heading,
             "kind": self.kind,
             "flash": self.flash_timer,
-            "role": getattr(self, "role", "unknown"),  # <-- add this line
+            "role": getattr(self, "role", "unknown"),  
         }
 

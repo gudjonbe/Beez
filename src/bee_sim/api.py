@@ -32,7 +32,7 @@ class SimController:
         qx, qy = self.world.hive
         self._bees.append(QueenBee(self._next_id, qx, qy)); self._next_id += 1
         # Seed workers
-        for _ in range(5):
+        for _ in range(50):
             self._bees.append(self._new_worker())
 
     def _new_worker(self) -> WorkerBee:

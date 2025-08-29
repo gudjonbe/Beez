@@ -1,16 +1,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Iterable, Optional, List, Dict, Tuple
+from typing import Iterable, Optional, List, Dict, Tuple, Any
 import math
 
-# ---------------------------
-# Signal primitives
-# ---------------------------
+# Public type alias for backward compatibility where 'SignalKind' was hinted
+SignalKind = str
 
 @dataclass
 class Signal:
-    """
-    A short-lived signal in space with optional payload.
+    """A short-lived signal in space with optional payload.
     Decays over time and vanishes when ttl <= 0.
     """
     kind: str
@@ -21,11 +19,10 @@ class Signal:
     decay: float = 0.5            # exponential decay rate (1/s)
     ttl: float = 2.0              # time-to-live (s)
     source_id: int = 0            # emitting agent id (optional)
-    payload: Optional[Dict] = None
+    payload: Optional[Dict[str, Any]] = None
 
     def falloff(self, px: float, py: float) -> float:
-        """
-        Spatial attenuation in [0,1] within radius (cosine falloff).
+        """Spatial attenuation in [0,1] within radius (cosine falloff).
         1 at center, 0 at radius.
         """
         dx, dy = px - self.x, py - self.y
@@ -39,15 +36,16 @@ class Signal:
         """Local strength considering spatial falloff and intensity."""
         return self.intensity * self.falloff(px, py)
 
-    # Compatibility alias for older code paths
+    # Compatibility alias used by older code paths
     def sense_strength(self, px: float, py: float) -> float:
         return self.strength_at(px, py)
 
     def step(self, dt: float) -> None:
         """Advance time: exponential intensity decay and ttl countdown."""
-        if dt <= 0.0:
+        if dt <= 0:
             return
-        self.intensity *= math.exp(-max(0.0, self.decay) * dt)
+        # Exponential decay of intensity; clamp to 0
+        self.intensity *= math.exp(max(-60.0, -max(0.0, self.decay) * dt))
         self.ttl -= dt
 
     @property
@@ -56,20 +54,20 @@ class Signal:
 
 
 class SignalBus:
-    """
-    Holds active signals and provides simple queries.
+    """Holds active signals and provides simple queries.
     API used by the sim:
       - emit(Signal)
       - step(dt)
-      - strongest(x, y, kinds: Optional[Iterable[str]]) -> Optional[Signal]
+      - strongest(x, y, kinds: Optional[Iterable[str]])
       - query(x, y, kinds=None, *, min_strength=..., limit=..., with_strength=False)
-      - .signals (list) for stats/inspection
+      - counts()
+      - signals (list) for stats/inspection
     """
     def __init__(self):
         self.signals: List[Signal] = []
         self._by_kind: Dict[str, List[Signal]] = {}
 
-    # --- lifecycle ----------------------------------------------------------
+    # --- lifecycle ------------------------------------------------------
     def emit(self, sig: Signal) -> None:
         self.signals.append(sig)
         self._by_kind.setdefault(sig.kind, []).append(sig)
@@ -86,7 +84,7 @@ class SignalBus:
                 self._by_kind.setdefault(s.kind, []).append(s)
         self.signals = alive
 
-    # --- queries ------------------------------------------------------------
+    # --- queries --------------------------------------------------------
     def strongest(self, x: float, y: float, kinds: Optional[Iterable[str]] = None) -> Optional[Signal]:
         if kinds is None:
             pool = self.signals
@@ -136,4 +134,3 @@ class SignalBus:
 
     def counts(self) -> Dict[str, int]:
         return {k: len(v) for k, v in self._by_kind.items()}
-

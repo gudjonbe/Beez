@@ -56,7 +56,7 @@ class QueenBee(Bee):
                 self._emit_acc = 0.0
                 world.signals.emit(Signal(
                     kind="queen_mandibular", x=hx, y=hy, radius=world.hive_radius * 1.5,
-                    intensity=0.6, decay=0.1, ttl=2.0, source_id=self.id
+                    intensity=0.2, decay=0.1, ttl=2.0, source_id=self.id
                 ))
                 self.last_signal_kind = "queen_mandibular"
                 self.flash_timer = max(self.flash_timer, 0.4)

@@ -6,10 +6,8 @@ from typing import Dict, Union, Any
 from .roles import RoleDrives, RolePolicy
 
 class Bee:
-    """Base bee with simple kinematics + role/comms scaffolding.
-
-    NOTE: Keep snapshot() shape stable for the UI. We add optional fields
-    'kind' and 'flash' that the UI uses if present.
+    """
+    Base bee with simple kinematics + role/comms scaffolding.
     """
     SPEED_MIN = 40.0
     SPEED_MAX = 120.0

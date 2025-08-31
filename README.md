@@ -15,4 +15,6 @@ pip install -e ".[dev]"
 
 python -m uvicorn bee_sim.main:app --reload --port 8000
 # open http://localhost:8000
+# open http://localhost:8000/metrics
+
 ```

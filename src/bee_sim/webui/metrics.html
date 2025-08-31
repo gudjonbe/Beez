@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BeeSim Metrics</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root { --bg:#0b0f14; --panel:#0e141b; --text:#e6edf3; --muted:#94a3b8; --pill:#1f2937; --grid:#203040; --accent:#60a5fa; }
+    html,body{height:100%} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans}
+    header{display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid #1b2430;position:sticky;top:0;z-index:1}
+    h2{margin:0;font-weight:600} .pill{background:var(--pill);color:var(--muted);padding:2px 10px;border-radius:999px;font-size:12px}
+    .controls{padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .controls input[type="text"]{background:#0a1220;color:var(--text);border:1px solid #1c2733;border-radius:6px;padding:6px 8px;outline:none}
+    .chart{width:100%;height:calc(100vh - 140px);padding:0 8px 14px;box-sizing:border-box}
+    a{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Metrics</h2>
+    <span class="pill" id="status">connecting…</span>
+    <span class="pill" id="stats">—</span>
+  </header>
+
+  <div class="controls">
+    <label><input type="checkbox" id="autoKeys" checked> auto-plot <code>stats.*</code> & <code>world.*</code></label>
+    <label><input type="checkbox" id="plotAll"> plot ALL numeric</label>
+    <input id="include" placeholder="include regex (optional)">
+    <input id="exclude" placeholder="exclude regex (optional)">
+    <span class="pill">canvas UI → <a href="/">/</a></span>
+  </div>
+
+  <div id="chart" class="chart"></div>
+
+<script>
+  // ---- WebSocket ----------------------------------------------------------
+  const WS_URL = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws/metrics';
+  const ws = new WebSocket(WS_URL);
+  const statusEl = document.getElementById('status');
+  const statEl = document.getElementById('stats');
+
+  ws.onopen  = () => statusEl.textContent = 'live';
+  ws.onclose = () => statusEl.textContent = 'closed';
+  ws.onerror = () => statusEl.textContent = 'error';
+
+  // ---- Plotly (dark) ------------------------------------------------------
+  const chartId = 'chart';
+  Plotly.newPlot(chartId, [], {
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'#0b0f14', font:{color:'#e6edf3'},
+    margin:{l:48,r:12,t:12,b:36}, legend:{orientation:'h',bgcolor:'rgba(0,0,0,0)'},
+    xaxis:{gridcolor:'#203040',zerolinecolor:'#203040',linecolor:'#203040',tickcolor:'#203040'},
+    yaxis:{gridcolor:'#203040',zerolinecolor:'#203040',linecolor:'#203040',tickcolor:'#203040'},
+    uirevision:'keep'
+  }, {responsive:true, displaylogo:false});
+
+  // ---- Helpers ------------------------------------------------------------
+  const traces = {};           // name -> {idx}
+  const order  = [];           // stable order of traces
+  let lastT = null, fallbackT = 0, frames = 0, t0 = performance.now();
+
+  function isNum(n){ return typeof n === 'number' && Number.isFinite(n); }
+
+  function flatten(obj, prefix=''){
+    const out = {};
+    for (const [k,v] of Object.entries(obj || {})) {
+      const key = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        Object.assign(out, flatten(v, key));   // dive into nested (e.g., world.weather.flow)
+      } else if (['number','string','boolean'].includes(typeof v)) {
+        out[key] = v;
+      }
+    }
+    return out;
+  }
+
+  function keepKey(k){
+    const plotAll = document.getElementById('plotAll').checked;
+    const auto    = document.getElementById('autoKeys').checked;
+    const inc     = document.getElementById('include').value;
+    const exc     = document.getElementById('exclude').value;
+
+    if (inc) { try { if (!new RegExp(inc).test(k)) return false; } catch {} }
+    if (exc) { try { if ( new RegExp(exc).test(k)) return false; } catch {} }
+    if (plotAll) return true;
+    if (!auto)   return true;
+
+    // default: plot numeric stats.* and world.* series
+    return k.startsWith('stats.') || k.startsWith('world.');
+  }
+
+  function ensureTrace(name){
+    if (traces[name]) return traces[name].idx;
+    const idx = order.length;
+    order.push(name);
+    traces[name] = { idx };
+    Plotly.addTraces(chartId, [{ x:[], y:[], name, mode:'lines' }]);
+    return idx;
+  }
+
+  // ---- Stream handling ----------------------------------------------------
+  ws.onmessage = (ev) => {
+    try {
+      const frame = JSON.parse(ev.data);
+      const flat  = flatten(frame);                 // flattens world.* and stats.*
+
+      // resolve t (fallback if missing or stuck)
+      let t = isNum(flat.t) ? flat.t : ++fallbackT;
+      if (lastT === t) t = ++fallbackT;
+      lastT = t;
+
+      // choose numeric keys
+      const keys = Object.keys(flat).filter(k => isNum(flat[k]) && keepKey(k));
+      if (keys.length === 0) return;
+
+      // create traces
+      for (const k of keys) ensureTrace(k);
+
+      // batch update
+      const updates = [], idxs = [];
+      for (const k of keys) {
+        const i = traces[k].idx;
+        updates.push({ x:[[t]], y:[[flat[k]]], type:'scatter' });
+        idxs.push(i);
+      }
+      Plotly.extendTraces(chartId, updates, idxs, 2000);
+
+      // tiny HUD
+      frames++;
+      const now = performance.now();
+      if (now - t0 > 1000) {
+        const fps = (frames * 1000 / (now - t0)).toFixed(1);
+        statEl.textContent = `${fps} fps · ${order.length} traces`;
+        frames = 0; t0 = now;
+      }
+    } catch { /* ignore */ }
+  };
+</script>
+
+  <div id="chart"></div>
+  <script src="/metrics.client.js" defer></script>
+</body>
+</html>
+

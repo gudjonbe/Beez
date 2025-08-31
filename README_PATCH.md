@@ -1,0 +1,1 @@
+Plots the same variables as the Stats panel: bees.count, world.flowers_remaining, world.total_deposited, stats.roles.{forager,queen}, stats.signals.{brood,queen_mandibular,tremble,waggle}, stats.receiver_queue, stats.queue_avg, stats.waggle_active, stats.receivers_active.

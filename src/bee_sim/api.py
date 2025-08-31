@@ -7,6 +7,7 @@ from collections import Counter
 from bee_sim.domain.agents.worker import WorkerBee, set_receiver_rate, set_tremble_threshold
 from bee_sim.domain.agents.queen import QueenBee
 from bee_sim.domain.environment.world import World
+from bee_sim.io.logging import RunLogger
 
 @dataclass
 class BeeView:
@@ -25,6 +26,7 @@ class SimController:
         self.rng = random.Random(seed)
         self._t = 0.0; self._next_id = 1; self._paused = False; self._speed = 1.0
         self.world = World(width, height, self.rng)
+        self._logger: RunLogger | None = None
 
         # Agents
         self._bees: list = []
@@ -59,6 +61,18 @@ class SimController:
         else:
             for _ in range(n):
                 self._bees.append(self._new_worker())
+    # --- logging ------------------------------------------------------------
+    def enable_run_logging(self, root: str = "runs", ws_url: str | None = None, token: str | None = None, run_id: str | None = None) -> str:
+        "Enable per-frame logging to CSV and optional websocket streaming. Returns run_id."
+        self._logger = RunLogger(root=root, run_id=run_id, ws_url=ws_url, token=token)
+        self._logger.start()
+        return self._logger.run_id
+
+    def disable_run_logging(self) -> None:
+        if self._logger:
+            self._logger.stop()
+            self._logger = None
+
 
     # --- step & stats -------------------------------------------------------
     def step(self, dt: float) -> None:
@@ -77,6 +91,13 @@ class SimController:
 
         # Cull dead bees
         self._bees = [b for b in self._bees if not getattr(b, "dead", False)]
+
+        # Log frame if enabled
+        if self._logger is not None:
+            try:
+                self._logger.log(self.get_view())
+            except Exception:
+                pass
 
         # Advance brood & spawn new workers
         try:
